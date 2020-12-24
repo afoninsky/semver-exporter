@@ -13,5 +13,6 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.9.0
 	github.com/stretchr/testify v1.6.1
+	gocloud.dev v0.21.0
 	gopkg.in/yaml.v2 v2.4.0
 )

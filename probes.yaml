@@ -2,6 +2,6 @@ zookeeper:
   type: helm
   interval: 1s
   config: |
-    chart: test
+    chart: zookeeper
     repository: https://charts.bitnami.com/bitnami
     constraint: "*.*.*"
