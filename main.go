@@ -99,25 +99,29 @@ func startProber(name string, p probers.Prober, d time.Duration, storage *blob.B
 		if err != nil {
 			log.Fatal(err)
 		}
-		new, err := p.Probe(v)
+		newV, err := p.Probe(v)
+
 		if err != nil {
 			log.Printf("[ERROR] %s: %v", name, err)
 			continue
 		}
-		// todo: sdsdf
-		if v == new {
-			fmt.Println("test")
+		if v == nil || v.String() == newV.String() {
 			continue
 		}
-		if err := saveVersion(storage, name, new); err != nil {
+		if err := saveVersion(storage, name, newV); err != nil {
 			log.Fatal(err)
 		}
-		log.Printf("%s, new version: %s -> %s\n", name, v, new)
-
+		log.Printf("%s, new version: %s -> %s\n", name, v, newV)
+		labels := fmt.Sprintf(`semver_release{probe="%s",version="%s",version_major="%d",version_minor="%d",version_patch="%d"}`,
+			name,
+			newV,
+			newV.Major(),
+			newV.Minor(),
+			newV.Patch(),
+		)
+		metrics.GetOrCreateCounter(labels).Set(1)
 	}
 }
-
-// // 	// metrics.GetOrCreateCounter(`foo{bar="baz",aaa="b"}`).Set(1)
 
 // stores value in storage
 func saveVersion(storage *blob.Bucket, name string, v *semver.Version) error {
