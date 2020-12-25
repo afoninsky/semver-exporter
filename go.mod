@@ -1,10 +1,11 @@
-module github.com/afoninsky/semver-exporter
+module github.com/afoninsky/version-exporter
 
 go 1.15
 
 require (
 	github.com/Masterminds/semver v1.5.0
 	github.com/VictoriaMetrics/metrics v1.12.3
+	github.com/afoninsky/semver-exporter v0.0.0-20201224185109-9fd2cc4e83d7
 	github.com/afoninsky/verdite v0.0.0-20201223095709-275b687a672c
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/go-playground/validator v9.31.0+incompatible

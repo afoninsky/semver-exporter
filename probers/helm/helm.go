@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 
 	"github.com/Masterminds/semver"
-	"github.com/afoninsky/verdite/logger"
 	"github.com/go-playground/validator"
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/pkg/errors"
@@ -46,7 +45,7 @@ type chartStruct struct {
 }
 
 // New creates component instance
-func New(name string, rawCfg string) (Helm, error) {
+func New(rawCfg string) (Helm, error) {
 	r := Helm{}
 	cfg, err := r.config(rawCfg)
 	if err != nil {
@@ -74,30 +73,36 @@ func New(name string, rawCfg string) (Helm, error) {
 	// init retryable client
 	r.client = retryablehttp.NewClient()
 	r.client.RetryMax = 3
-	r.client.Logger = logger.New()
+	r.client.Logger = newLeveledLogger()
 
 	r.chartName = cfg.Chart
 
 	return r, nil
 }
 
-// Probe returns the latest version
-func (r Helm) Probe(current *semver.Version) (*semver.Version, error) {
+// Probe returns the latest version of the helm chart with the respect of constraints
+func (r Helm) Probe(current string) (string, error) {
 
-	cv, _ := semver.NewVersion(current.String())
+	if current == "" {
+		current = "0.0.0"
+	}
+	cv, err := semver.NewVersion(current)
+	if err != nil {
+		return "", errors.Wrap(err, "parse version")
+	}
 	data, err := r.fetch()
 	if err != nil {
-		return nil, errors.Wrap(err, "fetch repo")
+		return "", errors.Wrap(err, "fetch repo")
 	}
 	releases, ok := data.Entries[r.chartName]
 	if !ok {
-		return nil, errors.Errorf(`chart "%s" was not found in %s`, r.chartName, r.url.Host)
+		return "", errors.Errorf(`chart "%s" was not found in %s`, r.chartName, r.url.Host)
 	}
 
 	for _, release := range releases {
 		v, err := semver.NewVersion(release.Version)
 		if err != nil {
-			// unable to parse relese version to semver
+			// unable to parse release version as semantic version
 			continue
 		}
 		if !r.constraint.Check(v) {
@@ -109,7 +114,7 @@ func (r Helm) Probe(current *semver.Version) (*semver.Version, error) {
 		}
 	}
 
-	return cv, nil
+	return cv.String(), nil
 }
 
 func (r Helm) config(rawCfg string) (Config, error) {

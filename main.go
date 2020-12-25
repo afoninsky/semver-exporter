@@ -12,8 +12,7 @@ import (
 
 	"github.com/Masterminds/semver"
 	"github.com/VictoriaMetrics/metrics"
-	"github.com/afoninsky/semver-exporter/probers"
-	"github.com/afoninsky/semver-exporter/probers/helm"
+	"github.com/afoninsky/version-exporter/probers"
 	"gocloud.dev/blob"
 	_ "gocloud.dev/blob/azureblob"
 	_ "gocloud.dev/blob/fileblob"
@@ -48,8 +47,13 @@ func main() {
 		log.Fatal(err)
 	}
 
-	if err := createProbers(bucket, cfg); err != nil {
-		log.Fatal(err)
+	for name, probe := range cfg {
+		log.Printf(`Testing %s with interval %s`, name, probe.Interval)
+		p, err := probers.New(name, probe.Config)
+		if err != nil {
+			log.Fatal(err)
+		}
+		go startProber(name, p, probe.Interval, bucket)
 	}
 
 	http.HandleFunc("/metrics", func(w http.ResponseWriter, req *http.Request) {
@@ -73,23 +77,6 @@ func loadConfig(cfgPath string) (probes, error) {
 	}
 
 	return cfg, nil
-}
-
-func createProbers(storage *blob.Bucket, cfg probes) error {
-	for name, probe := range cfg {
-		log.Printf(`Testing %s with interval %s`, name, probe.Interval)
-		switch probe.Type {
-		case "helm":
-			p, err := helm.New(name, probe.Config)
-			if err != nil {
-				return err
-			}
-			go startProber(name, p, probe.Interval, storage)
-		default:
-			return fmt.Errorf(`type %s is not supported`, name)
-		}
-	}
-	return nil
 }
 
 func startProber(name string, p probers.Prober, d time.Duration, storage *blob.Bucket) {
@@ -124,12 +111,12 @@ func startProber(name string, p probers.Prober, d time.Duration, storage *blob.B
 }
 
 // stores value in storage
-func saveVersion(storage *blob.Bucket, name string, v *semver.Version) error {
+func saveVersion(storage *blob.Bucket, name string, v string) error {
 	w, err := storage.NewWriter(context.Background(), name, nil)
 	if err != nil {
 		return err
 	}
-	_, err = fmt.Fprint(w, v.String())
+	_, err = fmt.Fprint(w, v)
 	if err != nil {
 		return err
 	}
@@ -137,17 +124,17 @@ func saveVersion(storage *blob.Bucket, name string, v *semver.Version) error {
 }
 
 // reads value from storage
-func getCurrentVersion(storage *blob.Bucket, name string) (*semver.Version, error) {
+func getCurrentVersion(storage *blob.Bucket, name string) (string, error) {
 	r, err := storage.NewReader(context.Background(), name, nil)
 	if err != nil {
 		if gcerrors.Code(err) == gcerrors.NotFound {
 			v, _ := semver.NewVersion("0.0.0")
-			return v, nil
+			return v.String(), nil
 		}
-		return nil, err
+		return "", err
 	}
 	defer r.Close()
 	buf := new(bytes.Buffer)
 	buf.ReadFrom(r)
-	return semver.NewVersion(buf.String())
+	return buf.String(), nil
 }
