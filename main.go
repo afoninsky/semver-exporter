@@ -49,7 +49,7 @@ func main() {
 
 	for name, probe := range cfg {
 		log.Printf(`Testing %s with interval %s`, name, probe.Interval)
-		p, err := probers.New(name, probe.Config)
+		p, err := probers.New(probe.Type, probe.Config)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -92,19 +92,27 @@ func startProber(name string, p probers.Prober, d time.Duration, storage *blob.B
 			log.Printf("[ERROR] %s: %v", name, err)
 			continue
 		}
-		if v == nil || v.String() == newV.String() {
+
+		if v == "" || v == newV {
 			continue
 		}
+		// TODO: parse string to semver
+		pNewV, err := semver.NewVersion(newV)
+		if err != nil {
+			log.Printf("[ERROR] parsing version: %s: %v", name, err)
+			continue
+		}
+
 		if err := saveVersion(storage, name, newV); err != nil {
 			log.Fatal(err)
 		}
 		log.Printf("%s, new version: %s -> %s\n", name, v, newV)
 		labels := fmt.Sprintf(`semver_release{probe="%s",version="%s",version_major="%d",version_minor="%d",version_patch="%d"}`,
 			name,
-			newV,
-			newV.Major(),
-			newV.Minor(),
-			newV.Patch(),
+			pNewV,
+			pNewV.Major(),
+			pNewV.Minor(),
+			pNewV.Patch(),
 		)
 		metrics.GetOrCreateCounter(labels).Set(1)
 	}
